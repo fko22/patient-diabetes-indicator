@@ -1,4 +1,4 @@
-# health-info-project
+# patient-diabetes-indicator
 Health Informatics - Final Project
 
 Steps: 
