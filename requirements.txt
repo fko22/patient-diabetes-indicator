@@ -1,5 +1,5 @@
 altair==4.2.2
-imbalanced-learn==0.10.1  # Replace imblearn placeholder
+imbalanced-learn==0.11.0  # Replace imblearn placeholder
 pillow==10.4.0
 pip-chill==1.0.3  # Optional, remove if not using it for trimming
 pipreqs==0.5.0  # Optional, remove if not using it for generating requirements
@@ -10,4 +10,4 @@ rich==13.9.3
 tenacity==8.5.0
 ucimlrepo==0.0.7
 xgboost==2.1.1
-scikit-learn==1.5.2
+scikit-learn==1.3.2
