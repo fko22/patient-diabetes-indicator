@@ -135,13 +135,18 @@ else:
             st.markdown('<div class="tile-box"><div class="metric-box"><b>Education Level:</b> ' + education_desc + '</div></div>', unsafe_allow_html=True)
             
         st.subheader("Feature Selection")
-        features = [col for col in user_data.columns if col not in ['user_id', 'date', 'email', 'Sex', 'Age', 'Education', 'id']]
+        features = [col for col in user_data.columns if col not in ['user_id', 'date', 'email', 'Sex', 'Age', 'Education', 'id', 'name', 'Probability']]
+
+        default_selection = ['Prediction'] + features[:4]  # Include 'Prediction' first and then the next 4 features
+
         selected_features = st.multiselect(
-                "Select features to display on the graph:",
-                features,
-                default=features[:5] 
-            )
-            
+            "Select features to display on the graph:",
+            features,
+            default=default_selection
+        )
+
+        print("features: ", features)
+
         # Display separate graphs for selected features
         for feature in selected_features:
             st.subheader(f"{feature}")
@@ -203,20 +208,20 @@ else:
                 green_mask = user_data['Prediction'] == "No Diabetes Present"
                 red_mask = user_data['Prediction'] == "Diabetes Present"
 
-                ax.plot(user_data['date'][green_mask], user_data['Probability'][green_mask] * 100, 
+                ax.plot(user_data['date'][green_mask], user_data['Probability'][green_mask] * 100,
                         label="No Diabetes Present", marker='o', linestyle='-', color='green')
 
-                ax.plot(user_data['date'][red_mask], -user_data['Probability'][red_mask] * 100, 
+                ax.plot(user_data['date'][red_mask], -user_data['Probability'][red_mask] * 100,
                         label="Diabetes Present", marker='o', linestyle='-', color='red')
 
-                ax.set_title("Prediction vs Probability Over Time")
+                ax.set_title("Your Risk of Diabetes Over Time")
                 ax.set_xlabel("Date")
-                ax.set_ylabel("Probability (%)")
-                
+                ax.set_ylabel("Risk of Diabetes (%)")
+
                 plt.xticks(rotation=45, ha='right')
 
-                ax.set_ylim(bottom=-100, top=100)  
-                ax.legend()
+                ax.set_ylim(bottom=0, top=100)
+                # ax.legend()
                 st.pyplot(fig)
             else:
                 fig, ax = plt.subplots(figsize=(10, 6))

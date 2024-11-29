@@ -346,17 +346,17 @@ else:
     # Show additional options only if prediction has been made
     if st.session_state.prediction_made and api_key is not None:
         # Generate LLM recommendations
-        if st.button("Generate Personalized Recommendations"):
-            st.write("### Personalized Lifestyle Recommendations:")
-            recommendations = generate_recommendations(
-                st.session_state.feature_contributions,
-                feature_info,
-                st.session_state.user_model_text,
-                llm
-            )
+        # if st.button("Generate Personalized Recommendations"):
+        st.write("### Personalized Lifestyle Recommendations:")
+        recommendations = generate_recommendations(
+            st.session_state.feature_contributions,
+            feature_info,
+            st.session_state.user_model_text,
+            llm
+        )
 
-            # Display the "content" part of the response
-            st.write(recommendations.content)
+        # Display the "content" part of the response
+        st.write(recommendations.content)
 
         with st.expander("View SHAP Values", expanded=False):
             # Visualize SHAP values using a bar plot
