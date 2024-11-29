@@ -135,7 +135,7 @@ else:
             st.markdown('<div class="tile-box"><div class="metric-box"><b>Education Level:</b> ' + education_desc + '</div></div>', unsafe_allow_html=True)
             
         st.subheader("Feature Selection")
-        features = [col for col in user_data.columns if col not in ['user_id', 'date', 'email', 'Sex', 'Age', 'Education']]
+        features = [col for col in user_data.columns if col not in ['user_id', 'date', 'email', 'Sex', 'Age', 'Education', 'id']]
         selected_features = st.multiselect(
                 "Select features to display on the graph:",
                 features,
