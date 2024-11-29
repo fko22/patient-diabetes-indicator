@@ -61,6 +61,7 @@ def load_api_key():
 
     # Use the API key
     api_key = os.environ["OPENAI_API_KEY"]
+    print(api_key)
 
     # if not api_key:
     #     raise ValueError("API key not found. Please set it in .env or Streamlit secrets.")

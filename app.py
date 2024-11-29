@@ -1,312 +1,134 @@
-import pandas as pd
-import shap
 import streamlit as st
-import joblib
-import numpy as np
-import matplotlib.pyplot as plt
+import sqlite3
 
-from utils import explain_model, generate_recommendations, load_api_key
-
-# Load the trained Random Forest model and scaler
-model = joblib.load('models/random_forest_diabetes_model.pkl')
-scaler = joblib.load('models/scaler.pkl')
-
-# Feature names and descriptions
-feature_info = {
-    'HighBP': ("History of high blood pressure", "No"),
-    'HighChol': ("History of high cholesterol", "No"),
-    'CholCheck': ("Cholesterol check within last 5 years", "No"),
-    'BMI': ("Body Mass Index(kg/m2)", 28),
-    'Smoker': ("Have you smoked at least 100 cigarettes in your entire life? [Note: 5 packs = 100 cigarettes]", "No"),
-    'Stroke': ("(Ever told) you had a stroke", "No"),
-    'HeartDiseaseorAttack': ("History of heart disease or heart attack", "No"),
-    'PhysActivity': ("Physical activity in past 30 days - not including job", "Yes"),
-    'Fruits': ("Consumed fruits 1+ times per day", "Yes"),
-    'Veggies': ("Consumed vegetables 1+ times per day", "Yes"),
-    'HvyAlcoholConsump': ("Heavy drinkers (adult men having more than 14 drinks per week and adult women having more than 7 drinks per week)", "No"),
-    'AnyHealthcare': ("Access to healthcare coverage", "Yes"),
-    'NoDocbcCost': ("Couldn't see a doctor due to cost", "No"),
-    'GenHlth': ("How would rate your general health?", 3),
-    'MentHlth': ("Number of mentally unhealthy days in the past 30 days", 0),
-    'PhysHlth': ("Number of physically unhealthy days in the past 30 days", 0),
-    'DiffWalk': ("Do you have serious difficulty walking or climbing stairs?", "No"),
-    'Sex': ("Gender (0 = Female, 1 = Male)", 1),
-    'Age': ("Age group (1 = 18-24, ..., 13 = 80+)", 8),
-    'Education': ("Level of education (1 = No education, ..., 6 = College graduate)", 4),
-    'Income': ("Income level (1 = < $10,000, ..., 8 = $75,000+)", 6)
-}
-
-# Streamlit UI
-st.title("🌿 HealthTrack Diabetes 🌿")
-st.warning("Predicting Diabetes Risk and Providing Lifestyle Recommendations")
-# st.title("Diabetes Prediction and Lifestyle Recommendations")
-
-# Demo Templates
-demo_profiles = {
-    "Sample Profile 1: Older Male with High BMI and Unhealthy Lifestyle": {
-        'HighBP': 1,
-        'HighChol': 1,
-        'CholCheck': 0,
-        'BMI': 35,
-        'Smoker': 1,
-        'Stroke': 1,
-        'HeartDiseaseorAttack': 1,
-        'PhysActivity': 0,
-        'Fruits': 0,
-        'Veggies': 0,
-        'HvyAlcoholConsump': 1,
-        'AnyHealthcare': 0,
-        'NoDocbcCost': 1,
-        'GenHlth': 5,
-        'MentHlth': 20,
-        'PhysHlth': 25,
-        'DiffWalk': 1,
-        'Sex': 1,  # Male
-        'Age': 65,  # 80+
-        'Education': 3,  # Some high school
-        'Income': 2  # $10,000 - $15,000
-    },
-    "Sample Profile 2: Younger Male with High BMI and Unhealthy Lifestyle": {
-        'HighBP': 0,
-        'HighChol': 1,
-        'CholCheck': 1,
-        'BMI': 32,
-        'Smoker': 1,
-        'Stroke': 0,
-        'HeartDiseaseorAttack': 0,
-        'PhysActivity': 0,
-        'Fruits': 0,
-        'Veggies': 0,
-        'HvyAlcoholConsump': 1,
-        'AnyHealthcare': 1,
-        'NoDocbcCost': 0,
-        'GenHlth': 4,
-        'MentHlth': 15,
-        'PhysHlth': 10,
-        'DiffWalk': 0,
-        'Sex': 1,  # Male
-        'Age': 25,  # 25-29
-        'Education': 4,  # High school graduate
-        'Income': 5  # $25,000 - $35,000
-    },
-    "Sample Profile 3: Older Under Educated Female with Healthy Diet": {
-        'HighBP': 1,
-        'HighChol': 0,
-        'CholCheck': 1,
-        'BMI': 22,
-        'Smoker': 0,
-        'Stroke': 0,
-        'HeartDiseaseorAttack': 0,
-        'PhysActivity': 1,
-        'Fruits': 1,
-        'Veggies': 1,
-        'HvyAlcoholConsump': 0,
-        'AnyHealthcare': 1,
-        'NoDocbcCost': 0,
-        'GenHlth': 2,
-        'MentHlth': 2,
-        'PhysHlth': 3,
-        'DiffWalk': 0,
-        'Sex': 0,  # Female
-        'Age': 74,  # 70-74
-        'Education': 1,  # No formal education
-        'Income': 1  # < $10,000
-    }
-}
-
-# Use a radio button for better visual clarity
-selected_demo = st.radio(
-    "Select a Demo Profile (optional) or enter custom values:",
-    ["Custom"] + list(demo_profiles.keys())
-)
-
-
-
-# Initialize user_input as a dictionary to ensure correct size and feature mapping
-if selected_demo != "Custom":
-    user_input = demo_profiles[selected_demo]  # Load demo profile
-else:
-    st.error("Enter the following health indicator values to predict diabetes presence:")
-    user_input = {feature: None for feature in feature_info.keys()}  # Empty values for manual entry
-
-# Generate inputs based on demo or manual entry
-for feature, (description, example_value) in feature_info.items():
-    if feature == "BMI" and selected_demo == "Custom":
-        weight = st.number_input("Weight (kg):", min_value=0.0, max_value=300.0, value=70.0)
-        height = st.number_input("Height (m):", min_value=0.0, max_value=3.0, value=1.75)
-        bmi = weight / (height ** 2) if height > 0 else 0
-        user_input[feature] = bmi
-        st.write(f"Your calculated BMI: {bmi:.2f}")
-
-    elif feature == "GenHlth":
-        genhlth_options = {
-            "Excellent": 1,
-            "Very Good": 2,
-            "Good": 3,
-            "Fair": 4,
-            "Poor": 5
-        }
-        genhlth_text = st.selectbox(
-            "How would you rate your general health?",
-            options=list(genhlth_options.keys()),
-            index=demo_profiles[selected_demo].get(feature, 3) - 1 if selected_demo != "Custom" else 2
-        )
-        user_input[feature] = genhlth_options[genhlth_text]
-
-    elif feature == "Sex":
-        sex = st.selectbox(
-            "Sex:", options=["Female", "Male"], index=demo_profiles[selected_demo].get(feature, 1) if selected_demo != "Custom" else 1
-        )
-        user_input[feature] = 1 if sex == "Male" else 0
-
-    elif feature == "Age":
-        age = st.number_input(
-            "Age (years):",
-            min_value=0, max_value=120,
-            value=demo_profiles[selected_demo].get(feature, 25) if selected_demo != "Custom" else 25
-        )
-        user_input[feature] = (
-            1 if age <= 24 else
-            2 if age <= 29 else
-            3 if age <= 34 else
-            4 if age <= 39 else
-            5 if age <= 44 else
-            6 if age <= 49 else
-            7 if age <= 54 else
-            8 if age <= 59 else
-            9 if age <= 64 else
-            10 if age <= 69 else
-            11 if age <= 74 else
-            12 if age <= 79 else 13
-        )
-
-    elif feature == "Income":
-        income = st.number_input(
-            "Income (in $):",
-            min_value=0, max_value=1000000,
-            value=demo_profiles[selected_demo].get(feature, 50000) if selected_demo != "Custom" else 50000
-        )
-        user_input[feature] = (
-            1 if income < 10000 else
-            2 if income < 15000 else
-            3 if income < 20000 else
-            4 if income < 25000 else
-            5 if income < 35000 else
-            6 if income < 50000 else
-            7 if income < 75000 else 8
-        )
-
-    elif feature == "Education":
-        education_options = {
-            "Never attended school or only kindergarten": 1,
-            "Grades 1 through 8 (Elementary)": 2,
-            "Grades 9 through 11 (Some high school)": 3,
-            "Grade 12 or GED (High school graduate)": 4,
-            "College 1 year to 3 years (Some college or technical school)": 5,
-            "College 4 years or more (College graduate)": 6
-        }
-        education_text = st.selectbox(
-            "Education Level:",
-            options=list(education_options.keys()),
-            index=demo_profiles[selected_demo].get(feature, 4) - 1 if selected_demo != "Custom" else 3
-        )
-        user_input[feature] = education_options[education_text]
-
-    elif example_value in ["Yes", "No"]:
-        value = st.selectbox(
-            f"{description} (No/Yes):",
-            options=["No", "Yes"],
-            index=demo_profiles[selected_demo].get(feature, 0) if selected_demo != "Custom" else 0
-        )
-        user_input[feature] = 1 if value == "Yes" else 0
-
-    else:
-        value = st.number_input(
-            f"{description}:",
-            min_value=0, max_value=100,
-            value=demo_profiles[selected_demo].get(feature, example_value) if selected_demo != "Custom" else example_value
-        )
-        user_input[feature] = value
-
-# show input values as dataframe
-# st.write(pd.DataFrame(user_input, index=[0]))
-
-# Convert user input to a numpy array and reshape to 2D
-user_input_array = np.array(list(user_input.values())).reshape(1, -1)
-
-# Scale the input features using the loaded scaler
-scaled_input = scaler.transform(user_input_array)
-
-
-# Initialize session state for prediction_made
-if "prediction_made" not in st.session_state:
-    st.session_state.prediction_made = False
-
-# Predict button
-if st.button("Predict"):
-    # Get the prediction probabilities
-    probabilities = model.predict_proba(scaled_input)[0]
-    diabetes_prob = probabilities[1]  # Probability of class 1 (Diabetes Present)
-    no_diabetes_prob = probabilities[0]  # Probability of class 0 (No Diabetes)
-
-    # Determine the prediction result
-    prediction_result = "Diabetes Present" if diabetes_prob > no_diabetes_prob else "No Diabetes Present"
-
-    user_model_text = f"The model predicts: **{prediction_result}** with {max(diabetes_prob, no_diabetes_prob) * 100:.2f}% probability"
-
-    # Display the prediction result with probabilities
-    st.success(user_model_text)
-
-    # Save prediction result in session state
-    st.session_state.prediction_made = True
-    st.session_state.user_model_text = user_model_text
-
-    # Get SHAP values and feature contributions
-    shap_values, feature_contributions = explain_model(
-        feature_names=list(feature_info.keys()),
-        X_sample=user_input_array,
-        X_sample_scaled=scaled_input,
-        rf_model=model
+# Database setup
+def init_db():
+    conn = sqlite3.connect('user_predictions.db')
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        email TEXT UNIQUE,
+        unique_id TEXT UNIQUE
     )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS predictions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        unique_id TEXT,
+        date TEXT,
+        inputs TEXT,
+        prediction_result TEXT,
+        diabetes_probability REAL,
+        no_diabetes_probability REAL,
+        FOREIGN KEY (unique_id) REFERENCES users (unique_id)
+    )
+    """)
+    conn.commit()
+    conn.close()
 
-    # Save SHAP values and contributions in session state
-    st.session_state.shap_values = shap_values
-    st.session_state.feature_contributions = feature_contributions
+# Generate unique ID
+def generate_unique_id(name):
+    conn = sqlite3.connect('user_predictions.db')
+    cursor = conn.cursor()
+    
+    last_name = name.split()[-1].lower()
+    cursor.execute("SELECT unique_id FROM users WHERE unique_id LIKE ?", (f"{last_name}%",))
+    existing_ids = cursor.fetchall()
+    
+    if not existing_ids:
+        return f"{last_name}1"
+    
+    existing_numbers = [int(id[0].replace(last_name, "")) for id in existing_ids if id[0].replace(last_name, "").isdigit()]
+    next_number = max(existing_numbers, default=0) + 1
+    return f"{last_name}{next_number}"
 
-llm, api_key = load_api_key()
+# Save user details
+def save_user(name, email, unique_id):
+    conn = sqlite3.connect('user_predictions.db')
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO users (name, email, unique_id) VALUES (?, ?, ?)", (name, email, unique_id))
+    conn.commit()
+    conn.close()
 
-# Show additional options only if prediction has been made
-if st.session_state.prediction_made and api_key is not None:
-    # Generate LLM recommendations
-    if st.button("Generate Personalized Recommendations"):
-        st.write("### Personalized Lifestyle Recommendations:")
-        recommendations = generate_recommendations(
-            st.session_state.feature_contributions,
-            feature_info,
-            st.session_state.user_model_text,
-            llm
-        )
+# Check if user exists
+def user_exists(unique_id=None, email=None):
+    conn = sqlite3.connect('user_predictions.db')
+    cursor = conn.cursor()
+    if unique_id:
+        cursor.execute("SELECT name FROM users WHERE unique_id = ?", (unique_id,))
+    elif email:
+        cursor.execute("SELECT name FROM users WHERE email = ?", (email,))
+    result = cursor.fetchone()
+    conn.close()
+    return result
 
-        # Display the "content" part of the response
-        st.write(recommendations.content)
+# Initialize database on startup
+init_db()
 
-    with st.expander("View SHAP Values", expanded=False):
-        # Visualize SHAP values using a bar plot
-        st.write("### SHAP Feature Importance:")
+# Track login status in session state
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.user_id = None
 
-        fig, ax = plt.subplots()
-        shap.bar_plot(
-            st.session_state.shap_values[0][:, 1],  # SHAP values for class 1 (diabetes) for the first sample
-            feature_names=list(feature_info.keys()),
-            show=False  # Prevent SHAP from auto-displaying the plot
-        )
+# Login page
+def login_page():
+    st.header("Login")
 
-        st.pyplot(fig)
+    option = st.radio("How would you like to log in?", ["Name and Email", "Unique ID"])
+    if option == "Name and Email":
+        name = st.text_input("Enter your name")
+        email = st.text_input("Enter your email")
+        if st.button("Submit"):
+            if name and email:
+                user = user_exists(email=email)
+                if user:
+                    conn = sqlite3.connect('user_predictions.db')
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT unique_id FROM users WHERE email = ?", (email,))
+                    existing_id = cursor.fetchone()[0]
+                    conn.close()
+                    st.session_state.logged_in = True
+                    st.session_state.user_id = existing_id
+                    st.success(f"Welcome back, {user[0]}!")
+                else:
+                    unique_id = generate_unique_id(name)
+                    save_user(name, email, unique_id)
+                    st.session_state.logged_in = True
+                    st.session_state.user_id = unique_id
+                    st.success(f"Welcome, {name}! Your unique ID is **{unique_id}**.")
+            else:
+                st.error("Please provide both name and email.")
+    elif option == "Unique ID":
+        unique_id = st.text_input("Enter your unique ID")
+        if st.button("Submit"):
+            if unique_id:
+                user = user_exists(unique_id=unique_id)
+                if user:
+                    st.session_state.logged_in = True
+                    st.session_state.user_id = unique_id
+                    st.success(f"Welcome back, {user[0]}!")
+                else:
+                    st.error("Unique ID not found. Please log in with your name and email.")
+            else:
+                st.error("Please provide your unique ID.")
 
-        # Display the feature contributions in a table
-        st.write("### Feature Contributions:")
-        st.table(st.session_state.feature_contributions)
+# Navigation and page control
+def render_pages():
+    st.sidebar.title("Navigation")
+    page = st.sidebar.selectbox("Go to", ["Home", "Predictions"])
 
+    if page == "Home":
+        st.header("Welcome to the Diabetes Prediction App!")
+        st.write(f"Logged in as User ID: {st.session_state.user_id}")
+    elif page == "Predictions" and st.session_state.logged_in:
+        st.header("Prediction Page")
+        st.write("This is the predictions page.")
 
-
-
+# App logic
+if not st.session_state.logged_in:
+    st.warning("You must log in to access the app.")
+    login_page()
+else:
+    render_pages()
