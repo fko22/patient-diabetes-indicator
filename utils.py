@@ -4,6 +4,7 @@ import pandas as pd
 import shap
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
+import socket
 
 def explain_model(feature_names, X_sample, X_sample_scaled, rf_model):
     """
@@ -51,16 +52,15 @@ def load_api_key():
     load_dotenv()
 
     api_key = None
-
-    # Check if API key is already set
-    if not os.environ.get("OPENAI_API_KEY"):
+    if "lan" in socket.gethostname():
+       api_key = os.getenv("OPENAI_API_KEY")
+    else:
         try:
-            os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
-        except Exception:
-            os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+            api_key = st.secrets["OPENAI_API_KEY"]
+        except Exception as e:
+            raise ValueError(f"Failed to fetch API key from secrets: {e}")
 
     # Use the API key
-    api_key = os.environ["OPENAI_API_KEY"]
     print("api_key",api_key)
 
     if not api_key:
