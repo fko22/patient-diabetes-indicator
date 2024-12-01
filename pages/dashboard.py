@@ -1,8 +1,12 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from matplotlib.lines import Line2D
 from matplotlib.collections import LineCollection
+import matplotlib.ticker as ticker
 from datetime import datetime
 from email.mime.text import MIMEText
 import smtplib
@@ -151,22 +155,54 @@ else:
         for feature in selected_features:
             st.subheader(f"{feature}")
 
-            user_data['date'] = pd.to_datetime(user_data['date'])
+            user_data['date'] = pd.to_datetime(user_data['date']).dt.date
+            print(user_data['date'])
             
             if feature == "BMI":
                 fig, ax = plt.subplots(figsize=(10, 6))
+
+                # Define the healthy BMI range
                 healthy_bmi_mask = (user_data[feature] >= 18.5) & (user_data[feature] <= 25)
-        
-                ax.plot(user_data['date'][healthy_bmi_mask], user_data[feature][healthy_bmi_mask], label=f"{feature} (Healthy)", marker='o', linestyle='-', color='green')
-                ax.plot(user_data['date'][~healthy_bmi_mask], user_data[feature][~healthy_bmi_mask], label=f"{feature} (Not Healthy)", marker='o', linestyle='-', color='red')
-                
+                user_data['is_healthy'] = healthy_bmi_mask
+
+                # Prepare the data
+                dates = user_data['date'].values
+                values = user_data[feature].values
+
+                # Convert dates to numeric for LineCollection
+                numeric_dates = mdates.date2num(dates)
+                points = np.array([numeric_dates, values]).T.reshape(-1, 1, 2)
+                segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+                # Define the colors for healthy and not healthy BMI
+                colors = ['green' if is_healthy else 'red' for is_healthy in user_data['is_healthy']]
+
+                # Create a LineCollection with the segments and colors
+                lc = LineCollection(segments, colors=colors, linewidth=2)
+                ax.add_collection(lc)
+
+                for x, y, color in zip(dates, values, colors):
+                    ax.scatter(x, y, color=color, zorder=5)
+
+                # Format x-axis for dates
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+                if len(dates) <= 10:
+                    ax.set_xticks(dates)  # Set ticks for all available dates
+                else:
+                    ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=10))
+
+                # Set axis labels and title
+                ax.set_xlim(numeric_dates.min(), numeric_dates.max())
+                ax.set_ylim(values.min() - 1, values.max() + 1)
                 ax.set_title(f"{feature} Over Time")
                 ax.set_xlabel("Date")
                 ax.set_ylabel("BMI")
-                
+                legend_elements = [
+                    Line2D([0], [0], color='green', lw=2, label='BMI (Healthy)'),
+                    Line2D([0], [0], color='red', lw=2, label='BMI (Not Healthy)')
+                ]
+                ax.legend(handles=legend_elements, loc='upper left')
                 plt.xticks(rotation=45, ha='right')
-                
-                ax.legend()
                 st.pyplot(fig)
 
             elif feature in ["MentHlth", "PhysHlth"]:
@@ -175,8 +211,13 @@ else:
                 ax.set_title(f"{feature} Over Time")
                 ax.set_xlabel("Date")
                 ax.set_ylabel("Number of unhealthy days")
+                # Format x-axis for dates
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+                if len(dates) <= 10:
+                    ax.set_xticks(dates)  # Set ticks for all available dates
+                else:
+                    ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=10))
                 plt.xticks(rotation=45, ha='right')
-                ax.legend()
                 st.pyplot(fig)
             
             elif feature == 'Income':
@@ -192,6 +233,12 @@ else:
                 ax.plot(user_data['date'], user_data['Income'], label='Income', marker='o', linestyle='-', color='b')
                 
                 ax.set_title(f"{feature} Over Time")
+                # Format x-axis for dates
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+                if len(dates) <= 10:
+                    ax.set_xticks(dates)  # Set ticks for all available dates
+                else:
+                    ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=10))
                 ax.set_xlabel("Date")
                 ax.set_ylabel("Income Level")
                 
@@ -205,40 +252,144 @@ else:
             elif feature in ["Prediction","Probability"]:
                 fig, ax = plt.subplots(figsize=(10, 6))
 
-                green_mask = user_data['Prediction'] == "No Diabetes Present"
-                red_mask = user_data['Prediction'] == "Diabetes Present"
+                dates = user_data['date']
+                numeric_dates = mdates.date2num(dates)
+                probabilities = user_data['Probability'] * 100  # Scale probability to percentage
 
-                ax.plot(user_data['date'][green_mask], user_data['Probability'][green_mask] * 100,
-                        label="No Diabetes Present", marker='o', linestyle='-', color='green')
+                # Combine the prediction and probability into segments
+                points = np.array([numeric_dates, probabilities]).T.reshape(-1, 1, 2)
+                segments = np.concatenate([points[:-1], points[1:]], axis=1)
 
-                ax.plot(user_data['date'][red_mask], -user_data['Probability'][red_mask] * 100,
-                        label="Diabetes Present", marker='o', linestyle='-', color='red')
+                # Define colors based on predictions
+                colors = ['green' if pred == "No Diabetes Present" else 'red' for pred in user_data['Prediction']]
 
+                # Create a LineCollection with segments and colors
+                lc = LineCollection(segments, colors=colors, linewidth=2)
+                ax.add_collection(lc)
+
+                for x, y, color in zip(dates, probabilities, colors):
+                    ax.scatter(x, y, color=color, zorder=5)
+
+                # Set axis limits and labels
+                ax.set_xlim(numeric_dates.min(), numeric_dates.max())
+                ax.set_ylim(probabilities.min() - 10, probabilities.max() + 10)
                 ax.set_title("Your Risk of Diabetes Over Time")
                 ax.set_xlabel("Date")
                 ax.set_ylabel("Risk of Diabetes (%)")
 
+                # Format x-axis for dates
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+                if len(dates) <= 10:
+                    ax.set_xticks(dates)  # Set ticks for all available dates
+                else:
+                    ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=10))
                 plt.xticks(rotation=45, ha='right')
 
-                ax.set_ylim(bottom=0, top=100)
-                # ax.legend()
+                # Add a legend
+                legend_elements = [
+                    Line2D([0], [0], color='green', lw=2, label='No Diabetes Present'),
+                    Line2D([0], [0], color='red', lw=2, label='Diabetes Present')
+                ]
+                ax.legend(handles=legend_elements, loc='upper left')
+
+                # Show the plot
                 st.pyplot(fig)
-            else:
+                
+            elif feature in ["CholCheck","PhysActivity","Fruits","Veggies","AnyHealthcare"]:
                 fig, ax = plt.subplots(figsize=(10, 6))
 
-                binary_counts = user_data.groupby(['date', feature]).size().unstack().fillna(0)
-                binary_counts.plot(kind='line', ax=ax, marker='o', color=["green", "red"])
+                # Convert dates to numeric for LineCollection
+                dates = user_data['date']
+                numeric_dates = mdates.date2num(dates)
+                binary_values = user_data[feature].astype(int)  # Convert Yes/No to 1/0
 
+                # Prepare segments for LineCollection
+                points = np.array([numeric_dates, binary_values]).T.reshape(-1, 1, 2)
+                segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+                # Define colors based on binary values
+                colors = ['green' if val == 1 else 'red' for val in binary_values]
+
+                # Create LineCollection
+                lc = LineCollection(segments, colors=colors, linewidth=2)
+                ax.add_collection(lc)
+
+                for x, y, color in zip(dates, binary_values, colors):
+                    ax.scatter(x, y, color=color, zorder=5)
+
+                # Set axis limits and labels
+                ax.set_xlim(numeric_dates.min(), numeric_dates.max())
+                ax.set_ylim(-0.5, 1.5)  # Binary range
+                ax.set_yticks([0, 1])
+                ax.set_yticklabels(["No", "Yes"])
                 ax.set_title(f"{feature} Distribution Over Time")
                 ax.set_xlabel("Date")
                 ax.set_ylabel("Yes/No")
 
-                ax.set_ylim(-0.5, 1.5)  
-
-                ax.set_yticks([1, 0])  
-                ax.set_yticklabels(["Yes", "No"])  
-
+                # Format x-axis for dates
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+                if len(dates) <= 10:
+                    ax.set_xticks(dates)  # Set ticks for all available dates
+                else:
+                    ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=10))
                 plt.xticks(rotation=45, ha='right')
+
+                # Add legend
+                legend_elements = [
+                    Line2D([0], [0], color='green', lw=2, label='Yes'),
+                    Line2D([0], [0], color='red', lw=2, label='No')
+                ]
+                ax.legend(handles=legend_elements, loc='upper left')
+
+                # Show the plot
+                st.pyplot(fig)
+            else:
+                fig, ax = plt.subplots(figsize=(10, 6))
+
+                # Convert dates to numeric for LineCollection
+                dates = user_data['date']
+                numeric_dates = mdates.date2num(dates)
+                binary_values = user_data[feature].astype(int)  # Convert Yes/No to 1/0
+
+                # Prepare segments for LineCollection
+                points = np.array([numeric_dates, binary_values]).T.reshape(-1, 1, 2)
+                segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+                # Define colors based on binary values
+                colors = ['red' if val == 1 else 'green' for val in binary_values]
+
+                # Create LineCollection
+                lc = LineCollection(segments, colors=colors, linewidth=2)
+                ax.add_collection(lc)
+
+                for x, y, color in zip(dates, binary_values, colors):
+                    ax.scatter(x, y, color=color, zorder=5)
+
+                # Set axis limits and labels
+                ax.set_xlim(numeric_dates.min(), numeric_dates.max())
+                ax.set_ylim(-0.5, 1.5)  # Binary range
+                ax.set_yticks([0, 1])
+                ax.set_yticklabels(["No", "Yes"])
+                ax.set_title(f"{feature} Distribution Over Time")
+                ax.set_xlabel("Date")
+                ax.set_ylabel("Yes/No")
+
+                # Format x-axis for dates
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+                if len(dates) <= 10:
+                    ax.set_xticks(dates)  # Set ticks for all available dates
+                else:
+                    ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=10))
+                plt.xticks(rotation=45, ha='right')
+
+                # Add legend
+                legend_elements = [
+                    Line2D([0], [0], color='red', lw=2, label='Yes'),
+                    Line2D([0], [0], color='green', lw=2, label='No')
+                ]
+                ax.legend(handles=legend_elements, loc='upper left')
+
+                # Show the plot
                 st.pyplot(fig)
 
         
@@ -253,13 +404,13 @@ else:
                 try:
                     msg = MIMEText(content)
                     msg['Subject'] = "Your Dashboard Results"
-                    msg['From'] = "youremail@example.com"  # replace with your email
+                    msg['From'] = "healthtrackdiabetes@gmail.com" 
                     msg['To'] = email_address
 
-                    with smtplib.SMTP("smtp.example.com", 587) as server:  # need to replace with actual SMTP server
+                    with smtplib.SMTP("smtp.gmail.com", 587) as server: 
                         server.starttls()
-                        server.login("youremail@example.com", "yourpassword")  # need to replace with credentials
-                        server.sendmail("youremail@example.com", email_address, msg.as_string())
+                        server.login("healthtrackdiabetes@gmail.com", "ycajycbjfhsuvdkb") 
+                        server.sendmail("healthtrackdiabetes@gmail.com", email_address, msg.as_string())
                     
                     st.success("Email sent successfully!")
                 except Exception as e:
