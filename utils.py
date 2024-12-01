@@ -64,7 +64,9 @@ def load_api_key():
     print(api_key)
 
     if not api_key:
-        raise ValueError("API key not found. Please set it in .env or Streamlit secrets.")
+        api_key = st.secrets["OPENAI_API_KEY"]
+        if not api_key:
+            raise ValueError("API key not found. Please set it in .env or Streamlit secrets.")
 
     # Test the API key with ChatOpenAI
     chat = ChatOpenAI(api_key=api_key)

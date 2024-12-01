@@ -149,15 +149,11 @@ else:
             default=default_selection
         )
 
-        print("features: ", features)
-
         # Display separate graphs for selected features
         for feature in selected_features:
             st.subheader(f"{feature}")
 
-            user_data['date'] = pd.to_datetime(user_data['date']).dt.date
-            print(user_data['date'])
-            
+            user_data['date'] = pd.to_datetime(user_data['date']).dt.date            
             if feature == "BMI":
                 fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -345,7 +341,6 @@ else:
                 st.pyplot(fig)
             else:
                 fig, ax = plt.subplots(figsize=(10, 6))
-
                 # Convert dates to numeric for LineCollection
                 dates = user_data['date']
                 numeric_dates = mdates.date2num(dates)

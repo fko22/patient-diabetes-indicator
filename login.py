@@ -90,7 +90,6 @@ if "logged_in" not in st.session_state:
 
 # Login page
 def login_page():
-    print(st.session_state)
     st.header("Login")
     if not st.session_state.logged_in:
         st.warning("You must log in to access the app")
@@ -139,7 +138,6 @@ def login_page():
                     st.error("Please provide your unique ID.")
     else:
         if st.session_state.log_in_method == "existing_user":
-            print("here")
             st.success(f"Welcome back, {st.session_state.user}!")
         elif st.session_state.log_in_method == "new_user":
                 st.success(f"Welcome, {st.session_state.name }! Your unique ID is **{st.session_state.user_id}**.")
