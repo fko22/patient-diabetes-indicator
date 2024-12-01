@@ -60,6 +60,8 @@ def load_api_key():
             os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
     # Use the API key
+    print("""st.secrets["OPENAI_API_KEY"]: """, st.secrets["OPENAI_API_KEY"])
+    print("""st.secrets["OPENAI_API_KEY"]["OPENAI_API_KEY"]: """, st.secrets["OPENAI_API_KEY"]["OPENAI_API_KEY"])
     api_key = st.secrets["OPENAI_API_KEY"]
     print(api_key)
 
