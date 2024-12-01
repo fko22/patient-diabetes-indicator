@@ -55,7 +55,7 @@ def load_api_key():
     # Check if API key is already set
     if not os.environ.get("OPENAI_API_KEY"):
         try:
-            os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+            os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]["OPENAI_API_KEY"]
         except Exception:
             os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
@@ -64,9 +64,7 @@ def load_api_key():
     print(api_key)
 
     if not api_key:
-        api_key = st.secrets["OPENAI_API_KEY"]
-        if not api_key:
-            raise ValueError("API key not found. Please set it in .env or Streamlit secrets.")
+        raise ValueError("API key not found. Please set it in .env or Streamlit secrets.")
 
     # Test the API key with ChatOpenAI
     chat = ChatOpenAI(api_key=api_key)
