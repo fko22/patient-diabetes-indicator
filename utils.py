@@ -55,12 +55,12 @@ def load_api_key():
     # Check if API key is already set
     if not os.environ.get("OPENAI_API_KEY"):
         try:
-            os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]["OPENAI_API_KEY"]
+            os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
         except Exception:
             os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
     # Use the API key
-    api_key = st.secrets["OPENAI_API_KEY"]["OPENAI_API_KEY"]
+    api_key = st.secrets["OPENAI_API_KEY"]
     print(api_key)
 
     if not api_key:
